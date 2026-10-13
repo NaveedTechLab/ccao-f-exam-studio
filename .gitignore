@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+data/*.db
+data/*.db-*
+.streamlit/secrets.toml
+source_extract.txt
+mcp-shell.log
