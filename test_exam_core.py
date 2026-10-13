@@ -12,7 +12,7 @@ class ExamTests(unittest.TestCase):
         self.original = e.DB_PATH
         e.DB_PATH = Path(self.temp.name) / "test.db"
         e.init_db()
-        e.register("learner", "Test Learner", "strongpass123")
+        e.login("learner")
 
     def tearDown(self):
         e.DB_PATH = self.original
@@ -29,14 +29,14 @@ class ExamTests(unittest.TestCase):
         self.assertEqual(e.grade({q["id"]: q["answer"]}), 1)
         self.assertEqual(e.grade({q["id"]: list(q["options"])}), 0)
 
-    def test_identity_and_passwords(self):
-        self.assertEqual(e.login("LEARNER", "strongpass123"), "learner")
+    def test_username_only_identity(self):
+        self.assertEqual(e.login("LEARNER"), "learner")
+        self.assertEqual(e.login("learner"), "learner")
         with self.assertRaises(ValueError):
-            e.login("learner", "wrongpass")
-        with self.assertRaises(ValueError):
-            e.register("Learner", "Duplicate", "strongpass123")
-        with self.assertRaises(ValueError):
-            e.register("bad", "Bad User", "short")
+            e.login("ab")
+        with e.connect() as c:
+            columns = {row["name"] for row in c.execute("PRAGMA table_info(users)")}
+        self.assertEqual(columns, {"username", "name"})
 
     def test_resume_and_saved_answers(self):
         with patch("exam_core.time.time", return_value=1000):
@@ -71,7 +71,7 @@ class ExamTests(unittest.TestCase):
             self.assertIsNone(e.active_attempt("learner"))
 
     def test_submission_is_idempotent_and_authorized(self):
-        e.register("other", "Other User", "strongpass123")
+        e.login("other")
         aid = e.start_exam("learner")
         self.assertFalse(e.save_answer(aid, "other", "1.1", ["B"]))
         e.submit(aid, "other")
@@ -86,7 +86,7 @@ class ExamTests(unittest.TestCase):
     def test_best_score_and_time_and_top_ten_unique_users(self):
         for i in range(12):
             username = f"user_{i}"
-            e.register(username, f"Learner {i}", "strongpass123")
+            e.login(username)
             with patch("exam_core.time.time", return_value=1000):
                 aid = e.start_exam(username)
                 for q in e.QUESTIONS[:i]:

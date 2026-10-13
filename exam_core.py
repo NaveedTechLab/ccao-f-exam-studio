@@ -1,7 +1,5 @@
 """Persistent exam engine. All deadlines and grading are enforced server-side."""
 from contextlib import contextmanager
-import hashlib
-import hmac
 import json
 import os
 from pathlib import Path
@@ -45,10 +43,22 @@ def init_db():
     validate_bank()
     with connect() as c:
         c.execute("PRAGMA journal_mode=WAL")
-        c.executescript("""
+        c.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            username TEXT PRIMARY KEY, name TEXT NOT NULL,
-            salt TEXT NOT NULL, password_hash TEXT NOT NULL);
+            username TEXT PRIMARY KEY, name TEXT NOT NULL);
+        """)
+        # Preserve existing leaderboard identities while removing legacy password hashes.
+        columns = {row["name"] for row in c.execute("PRAGMA table_info(users)")}
+        if "password_hash" in columns:
+            c.executescript("""
+            CREATE TABLE users_username_only (
+                username TEXT PRIMARY KEY, name TEXT NOT NULL);
+            INSERT INTO users_username_only(username, name)
+                SELECT username, name FROM users;
+            DROP TABLE users;
+            ALTER TABLE users_username_only RENAME TO users;
+            """)
+        c.executescript("""
         CREATE TABLE IF NOT EXISTS attempts (
             id TEXT PRIMARY KEY, username TEXT NOT NULL,
             started REAL NOT NULL, deadline REAL NOT NULL,
@@ -60,34 +70,24 @@ def init_db():
         """)
 
 
-def password_hash(password, salt):
-    return hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt), 260000).hex()
-
-
-def register(username, name, password):
-    username = username.strip().lower()
-    name = " ".join(name.split())
+def login(username):
+    display_name = " ".join(username.split())
+    username = display_name.lower()
     if not re.fullmatch(r"[a-z0-9_]{3,24}", username):
-        raise ValueError("Username: 3-24 letters, numbers or underscores.")
-    if not 2 <= len(name) <= 40 or any(ord(x) < 32 for x in name):
-        raise ValueError("Enter a display name with 2-40 characters.")
-    if not 8 <= len(password) <= 128:
-        raise ValueError("Password must contain 8-128 characters.")
-    salt = secrets.token_hex(16)
-    try:
-        with connect() as c:
-            c.execute("INSERT INTO users VALUES (?,?,?,?)", (username, name, salt, password_hash(password, salt)))
-    except sqlite3.IntegrityError:
-        raise ValueError("This username is already taken.") from None
-    return username
-
-
-def login(username, password):
+        raise ValueError("Username must be 3-24 letters, numbers or underscores.")
     with connect() as c:
-        u = c.execute("SELECT * FROM users WHERE username=?", (username.strip().lower(),)).fetchone()
-    if u and hmac.compare_digest(u["password_hash"], password_hash(password, u["salt"])):
-        return u["username"]
-    raise ValueError("Username or password is incorrect.")
+        row = c.execute("SELECT username FROM users WHERE username=?", (username,)).fetchone()
+        if row:
+            return row["username"]
+        try:
+            c.execute("INSERT INTO users(username, name) VALUES (?, ?)", (username, display_name))
+        except sqlite3.IntegrityError:
+            # Another session may have created the same username at the same time.
+            row = c.execute("SELECT username FROM users WHERE username=?", (username,)).fetchone()
+            if row:
+                return row["username"]
+            raise
+    return username
 
 
 def grade(answers):

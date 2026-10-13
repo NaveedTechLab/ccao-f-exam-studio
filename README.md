@@ -10,7 +10,7 @@ Python must be installed. The first launch installs Streamlit and needs internet
 Or run in PowerShell:
 
 ```powershell
-cd 'E:\exam prep'
+cd 'E:\exam prep\ccao-f-exam-studio'
 python -m venv .venv
 .\.venv\Scripts\python.exe -m pip install -r requirements.txt
 .\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1
@@ -30,7 +30,7 @@ The interface and questions are in English, matching the source document.
 - Untimed domain practice with immediate explanations; practice does not affect rankings.
 - Score, incorrect-answer review, domain breakdown and downloadable JSON report.
 - Top 10 distinct accounts by their best exam: score descending, elapsed time ascending, then earliest finish.
-- Persistent SQLite accounts/results; salted PBKDF2 password hashes.
+- Persistent SQLite leaderboard/results; username-only identity, with no password fields.
 
 The PDF suggests 120 minutes. The platform deliberately uses the requested 100 minutes.
 Scoring is one point per fully correct question, no partial credit, no negative marks.
@@ -39,12 +39,12 @@ The source's 75% study target is not an official passing-score claim.
 ## Persistence and timer behavior
 
 Data is stored in data/exam.db next to the app. Keep that file to retain accounts and results.
-An active attempt is associated with the signed-in account, not only the browser session.
+An active attempt is associated with the entered username. Since usernames are not verified, another visitor can enter that same username and access its records.
 After refresh, sign in again to resume. The original deadline remains in force.
 If the browser or server is closed at expiry, the attempt is finalized on the next app/database interaction,
 using its original deadline and the last saved answers. Late answers are rejected by the backend.
 
-This is a local or small-group study app. Everyone must use the same running server to share a leaderboard.
+This is a local or small-group study app. Everyone must use the same running server to share a leaderboard. Username-only sign-in does not verify identity; leaderboard names and records can be impersonated.
 Separate installations maintain separate databases. For hosted use, keep SQLite on a persistent disk
 (EXAM_DB_PATH can set its location); ephemeral hosting will not preserve results across resets.
 Public high-stakes examination features such as proctoring, identity verification, password recovery and
