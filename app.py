@@ -70,32 +70,16 @@ def auth():
         st.caption("Practice content by Matthew Purcell. This is an independent study tool, not an official certification exam.")
     with right:
         with st.container(border=True):
-            tabs = st.tabs(["Sign in", "Create account"])
-            with tabs[0]:
-                with st.form("login"):
-                    username = st.text_input("Username", max_chars=24)
-                    password = st.text_input("Password", type="password", max_chars=128)
-                    if st.form_submit_button("Continue to my study space", type="primary", use_container_width=True):
-                        try:
-                            st.session_state.user = engine.login(username, password)
-                            st.rerun()
-                        except ValueError as e:
-                            st.error(str(e))
-            with tabs[1]:
-                st.caption("Your display name and username appear on the leaderboard after an exam.")
-                with st.form("register"):
-                    name = st.text_input("Display name", max_chars=40)
-                    username = st.text_input("Choose a username", max_chars=24)
-                    password = st.text_input("Choose a password", type="password", max_chars=128)
-                    confirm = st.text_input("Repeat password", type="password", max_chars=128)
-                    if st.form_submit_button("Create my account", type="primary", use_container_width=True):
-                        try:
-                            if password != confirm:
-                                raise ValueError("Passwords do not match.")
-                            st.session_state.user = engine.register(username, name, password)
-                            st.rerun()
-                        except ValueError as e:
-                            st.error(str(e))
+            st.subheader("Continue to your study space")
+            with st.form("username_login"):
+                username = st.text_input("Username", max_chars=24)
+                st.caption("No password needed. Anyone entering the same username can access its saved progress.")
+                if st.form_submit_button("Continue", type="primary", use_container_width=True):
+                    try:
+                        st.session_state.user = engine.login(username)
+                        st.rerun()
+                    except ValueError as e:
+                        st.error(str(e))
     show_leaderboard()
 
 
@@ -368,4 +352,5 @@ else:
                 result_view(rows[choice])
 
 st.divider()
+st.markdown("**Feedback or found an issue?** [Message Naveed on LinkedIn](https://www.linkedin.com/in/naveedtechlab/)")
 st.caption("Source: Matthew Purcell · CCAO-F Practice Questions · Independent practice material; not actual exam questions or an official Anthropic exam.")
