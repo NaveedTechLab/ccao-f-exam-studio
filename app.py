@@ -144,6 +144,11 @@ def answer_changed(aid, qid, key, multiple):
     engine.save_answer(aid, st.session_state.user, qid, list(value) if multiple else ([value] if value else []))
 
 
+def multiple_answers_changed(aid, qid, keys):
+    selected = [letter for letter, key in keys.items() if st.session_state.get(key, False)]
+    engine.save_answer(aid, st.session_state.user, qid, selected)
+
+
 def flag_changed(aid, qid, key):
     engine.flag_question(aid, st.session_state.user, qid, st.session_state[key])
 
@@ -190,13 +195,26 @@ def exam_view(aid):
             st.caption(f'Select exactly {q["select"]} answer(s).')
             key = f"exam_{aid}_{qid}"
             stored = answers.get(qid, [])
-            if key not in st.session_state:
-                st.session_state[key] = stored if q["select"] > 1 else (stored[0] if stored else None)
-            fmt = lambda letter: f'{letter}. {q["options"][letter]}'
             if q["select"] > 1:
-                st.multiselect("Your answers", list(q["options"]), max_selections=q["select"], format_func=fmt, key=key,
-                               on_change=answer_changed, args=(aid, qid, key, True))
+                checkbox_keys = {letter: f"exam_{aid}_{qid}_{letter}" for letter in q["options"]}
+                for letter, checkbox_key in checkbox_keys.items():
+                    if checkbox_key not in st.session_state:
+                        st.session_state[checkbox_key] = letter in stored
+                selected_now = [letter for letter, checkbox_key in checkbox_keys.items()
+                                if st.session_state.get(checkbox_key, False)]
+                for letter, option_text in q["options"].items():
+                    checkbox_key = checkbox_keys[letter]
+                    st.checkbox(
+                        f"{letter}. {option_text}",
+                        key=checkbox_key,
+                        disabled=(len(selected_now) >= q["select"] and letter not in selected_now),
+                        on_change=multiple_answers_changed,
+                        args=(aid, qid, checkbox_keys),
+                    )
             else:
+                if key not in st.session_state:
+                    st.session_state[key] = stored[0] if stored else None
+                fmt = lambda letter: f'{letter}. {q["options"][letter]}'
                 st.radio("Your answer", list(q["options"]), index=None, format_func=fmt, key=key,
                          on_change=answer_changed, args=(aid, qid, key, False))
                 if st.button("Clear answer", key=f"clear_{qid}"):
@@ -250,7 +268,20 @@ def practice_view():
             value = st.radio("Your answer", list(q["options"]), index=None, format_func=fmt, key=f"practice_{qid}")
             selected = [value] if value else []
         else:
-            selected = st.multiselect("Your answers", list(q["options"]), max_selections=q["select"], format_func=fmt, key=f"practice_{qid}")
+            checkbox_keys = {letter: f"practice_{qid}_{letter}" for letter in q["options"]}
+            for checkbox_key in checkbox_keys.values():
+                if checkbox_key not in st.session_state:
+                    st.session_state[checkbox_key] = False
+            selected = [letter for letter, checkbox_key in checkbox_keys.items()
+                        if st.session_state.get(checkbox_key, False)]
+            for letter, option_text in q["options"].items():
+                st.checkbox(
+                    f"{letter}. {option_text}",
+                    key=checkbox_keys[letter],
+                    disabled=(len(selected) >= q["select"] and letter not in selected),
+                )
+            selected = [letter for letter, checkbox_key in checkbox_keys.items()
+                        if st.session_state.get(checkbox_key, False)]
         if st.button("Check answer", type="primary"):
             if len(selected) != q["select"]:
                 st.warning(f'Select {q["select"]} answer(s) first.')
